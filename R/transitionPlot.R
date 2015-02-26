@@ -1,11 +1,17 @@
+source("C:/Data/LURG/workspace/R-CRAFTY/package/transplot/R/transitionPlot_helpers.R")
+source("C:/Data/LURG/workspace/R-CRAFTY/package/transplot/R/private_functions.R")
+source("C:/Data/LURG/workspace/R-CRAFTY/package/transplot/R/bezier_private_functions.R")
+source("C:/Data/LURG/workspace/R-CRAFTY/package/transplot/R/bezierArrowGradient2sided.R")
 #' A transition plot
+#' 
+#' http://gforge.se/packages/
 #'
 #' This plot purpose is to illustrate how states change before and
 #' after. In my research I use it before surgery and after surgery
 #' but it can be used in any situation where you have a change from
 #' one state to another
 #'
-#' @param transition_flow This should be a matrix with the size of the transitions.
+#' @param transition_flows This should be a list of matrices with the size of the transitions.
 #'  The unit for each cell should be number of observations, row/column-proportions
 #'  will show incorrect sizes. The matrix needs to be square. The best way to generate
 #'  this matrix is probably just do a \code{table(starting_state, end_state)}. The rows
@@ -58,11 +64,13 @@
 #' @param overlap_add_width The width of the white cross-over line. You can specify this as a scalar
 #'  multiplication of the current line width. In case of non-grid arrows then you can also have this
 #'  as a unit which is recommended as it looks better. If the scalar is < 1 then the overlap is ignored.
-#' @param box_prop If you want the boxes to have proportions indicating some other factors then input
-#'  a matrix with quantiles for the proportions. Note the size mus be \code{nrow(transition_flow) x 2}.
+#' @param box_props If you want the boxes to have proportions indicating some other factors then input
+#'  a matrix with quantiles for the proportions. Note the size must be \code{nrow(transition_flow)} (vector) or
+#' \code{nrow(transition_flow[[x]]) x (length(transition_flow) + 1)} (matrix). In the former case, the vector
+#' is used for the first column of boxes. Subsequent proportions are calculated by applying the flows.
 #' @param mar A numerical vector of the form c(bottom, left, top, right) of the type \code{unit()}
 #' @param main The title of the plot if any, default \code{NULL}
-#' @param box_label A vector of length 2 if you want to label each box column
+#' @param box_label vectors if you want to label each box column
 #' @param box_label_pos The position of the label, either \code{'top'} or \code{'bottom'}
 #' @param box_label_cex The cex of the label, defaults to the default cex
 #' @param color_bar If you have proportions inside the transition_flow variable
@@ -83,7 +91,6 @@
 #' # takes a little while to assemble the
 #' # arrows and RMD Check complains that this
 #' # is more than allowed for
-#' library(grid)
 #' par_org <- par(ask=TRUE)
 #' # Settings
 #' no_boxes <- 3
@@ -123,393 +130,424 @@
 #' }
 #' @import grid
 #' @export
-transitionPlot <- function (transition_flow,
-                            type_of_arrow = c("grid", "simple", "gradient"),
-                            box_txt = rownames(transition_flow),
-                            tot_spacing = 0.2,
-                            box_width = 1/4,
-                            fill_start_box = "darkgreen",
-                            txt_start_clr = "white",
-                            fill_end_box = fill_start_box,
-                            txt_end_clr = txt_start_clr,
-                            cex=2,
-                            min_lwd = if(type_of_arrow == "grid") 1 else unit(.1, "mm"),
-                            max_lwd = if(type_of_arrow == "grid") 6 else unit(5, "mm"),
-                            lwd_prop_total = TRUE,
-                            arrow_clr = "#000000",
-                            abs_arrow_width = FALSE,
-                            overlap_bg_clr = "#FFFFFF",
-                            overlap_order = 1:nrow(transition_flow),
-                            overlap_add_width = if(type_of_arrow == "grid") 1.5 else unit(1, "mm"),
-                            box_prop,
-                            mar = unit(rep(3, times=4), "mm"),
-                            main = NULL,
-                            box_label = NULL,
-                            box_label_pos = "top",
-                            box_label_cex = cex,
-                            color_bar = TRUE,
-                            color_bar_cex = cex * .33,
-                            color_bar_labels,
-                            color_bar_subspace,
-                            new_page = FALSE) {
-  # Just for convenience
-  no_boxes <- nrow(transition_flow)
+visualisation.transitionPlot <- function (transition_flows,
+		type_of_arrow = c("grid", "simple", "gradient", "gradient2sided"),
+		box_txt = rownames(transition_flows[[1]]),
+		tot_spacing = 0.2,
+		box_width = 1/(2*length(transition_flows)),
+		fill_start_box = "darkgreen",
+		txt_start_clr = "white",
+		fill_end_box = fill_start_box,
+		txt_end_clr = txt_start_clr,
+		cex=2,
+		min_lwd = if(type_of_arrow == "grid") 1 else unit(1, "mm"),
+		max_lwd = if(type_of_arrow == "grid") 6 else unit(5, "mm"),
+		lwd_prop_total = TRUE,
+		arrow_clr = "#000000",
+		abs_arrow_width = FALSE,
+		overlap_bg_clr = "#FFFFFF",
+		overlap_order = 1:nrow(transition_flows[[1]]),
+		overlap_add_width = if(type_of_arrow == "grid") 1.5 else unit(1, "mm"),
+		box_prop = NULL,
+		mar = unit(rep(3, times=4), "mm"),
+		main = NULL,
+		box_label = NULL,
+		box_label_pos = "top",
+		box_label_cex = cex,
+		color_bar = TRUE,
+		color_bar_cex = cex * .33,
+		color_bar_labels,
+		color_bar_subspace,
+		new_page = FALSE) {
+	
+	if (new_page) grid.newpage()
+	
+	# Add plot margin
+	prPushMarginViewport(bottom = convertY(mar[1], unitTo="npc"),
+			left = convertX(mar[2], unitTo="npc"),
+			top = convertY(mar[3], unitTo="npc"),
+			right = convertX(mar[4], unitTo="npc"),
+			"main_margins")
+	
+	if (!is.null(main) && nchar(main) > 0){
+		prGridPlotTitle(main, cex[1])
+	}
+	
+	label_height <- grobHeight(textGrob("XXXX", gp=gpar(cex=box_label_cex)))
+	label_height <- convertY(label_height, unitTo="npc", valueOnly=TRUE)
+	label_height <- unit(label_height + label_height * 0.1, "npc")
+	space_between <- unit(convertUnit(label_height, "mm", valueOnly=TRUE)/3, "mm")
 
+	convertUnit(space_between, "npc", valueOnly=TRUE)
+	if (box_label_pos == "top"){
+		gl <- grid.layout(nrow=3, ncol=1,
+				heights = unit.c(label_height, space_between, unit(1, "npc") - label_height - space_between))
+		row_main = 3
+		
+	} else {
+		gl <- grid.layout(nrow=3, ncol=1,
+				heights = unit.c(unit(1, "npc") - label_height - space_between, space_between, label_height))
+		row_main = 1
+	}
 
-  # If the matrix is a 3D matrix then the third dimension gives the proportion
-  if (length(dim(transition_flow)) > 2){
-    if (length(dim(transition_flow)) > 3)
-      stop("Your transition matrix should be created through:",
-           " table(var_a, var_b, var_c) providing a 3D-matrix",
-           " you have provided a ", length(dim(transition_flow)), "D matrix.")
-    if (!missing(box_prop))
-      stop("You can't have both box_prop and a three dimensional matrix as input")
-    if (dim(transition_flow)[3] != 2)
-      stop("Your third dimension should be a proportion,",
-           " i.e. a variable with two alternatives.",
-           " You have provided a variable with ", dim(transition_flow)[3], " alternatives")
+	pushViewport(viewport(layout=gl, name="box_label_layout"))
+	pushViewport(viewport(layout.pos.row=row_main, name="main"))
+	
+	transCount = 1
+	for (transition_flow in transition_flows) {
+		
+		# Just for convenience
+		no_boxes <- nrow(transition_flow)
+		
+		if (transCount > 1 && !is.matrix(overlap_order)) {
+			overlap_order <- 1:nrow(transition_flow)
+		}
+		
+		# If the matrix is a 3D matrix then the third dimension gives the proportion
+		if (length(dim(transition_flow)) > 2){
+			if (length(dim(transition_flow)) > 3)
+				stop("Your transition matrix should be created through:",
+						" table(var_a, var_b, var_c) providing a 3D-matrix",
+						" you have provided a ", length(dim(transition_flow)), "D matrix.")
+			if (!missing(box_prop))
+				stop("You can't have both box_prop and a three dimensional matrix as input")
+			if (dim(transition_flow)[3] != 2)
+				stop("Your third dimension should be a proportion,",
+						" i.e. a variable with two alternatives.",
+						" You have provided a variable with ", dim(transition_flow)[3], " alternatives")
+			
+			prop_fn <- function(x){
+				if (x[1] == 0)
+					return(0)
+				if (x[2] == 0)
+					return(1)
+				return(x[1]/x[2])
+			}
+			
+			no_1_start <- rowSums(transition_flow[,,1])
+			no_tot_start <- rowSums(transition_flow)
+			no_1_end <- colSums(transition_flow[,,1])
+			no_tot_end <- rowSums(colSums(transition_flow[,,1:2]))
+			box_prop <- cbind(apply(cbind(no_1_start, no_tot_start), 1, prop_fn),
+					apply(cbind(no_1_end, no_tot_end), 1, prop_fn))
+			transition_arrow_props <- transition_flow[,,1]/(transition_flow[,,1]+transition_flow[,,2])
+			
+			# Remove the third dimension
+			transition_flow <- transition_flow[,,1] + transition_flow[,,2]
+			if (color_bar == FALSE){
+				color_bar <- "none"
+			} else if(!is.character(color_bar)){
+				color_bar <- "bottom"
+			}
+		}else if(!missing(box_prop)){
+			transition_arrow_props <- t(sapply(box_prop[, transCount], function(x) rep(x, no_boxes)))
+			color_bar <- "none"
+		}else{
+			transition_arrow_props <- matrix(1, ncol=no_boxes, nrow=no_boxes)
+			color_bar <- "none"
+		}
+		
+		if (length(arrow_clr) == no_boxes){
+			arrow_clr <- t(sapply(arrow_clr, FUN=function(x){rep(x, ncol(transition_flow))}))
+		} else if (length(arrow_clr) == 1){
+			arrow_clr <- rep(arrow_clr, no_boxes*ncol(transition_flow))
+		}
+		
+		if (length(arrow_clr) != no_boxes*ncol(transition_flow))
+			stop("You have provided invalid number of arrow colors,",
+					" you have ", length(arrow_clr), " colors, while you should provide either 1, ",
+					no_boxes, ", or ", no_boxes*ncol(transition_flow), " colors")
+		
+		if (length(overlap_order) != no_boxes)
+			stop("You have the wrong number of overlap orders, you provided ",
+					length(overlap_order), " while it should be ", no_boxes)
+		else if (all(overlap_order %in% 1:no_boxes)==FALSE)
+			stop("Your overlap numbers contain numbers outside the rowrange of",
+					" the transition rows, i.e. not between 1 and ", no_boxes)
+		
+		type_of_arrow <- match.arg(type_of_arrow)
+		
+		if (type_of_arrow != "grid" && transCount == 1){
+			if (!"unit" %in% class(min_lwd) ||
+					!"unit" %in% class(max_lwd))
+				stop("Your line widths must be in units when you specify the alternative arrows, e.g. unit(10, 'pt')")
+			
+			# We need to convert these into regular values in order to use
+			# them later on in the calculations
+			min_lwd <- convertUnit(min_lwd, unitTo="npc", valueOnly=TRUE)
+			max_lwd <- convertUnit(max_lwd, unitTo="npc", valueOnly=TRUE)
+		}
+		
+		# Do some sanity checking of the variables
+		if (tot_spacing < 0 ||
+				tot_spacing > 1)
+			stop("Total spacing, the tot_spacing param,",
+					" must be a fraction between 0-1,",
+					" you provided ", tot_spacing)
+		
+		if (box_width < 0 ||
+				box_width > 1)
+			stop("Box width, the box_width param,",
+					" must be a fraction between 0-1,",
+					" you provided ", box_width)
+		
+		# If the text element is a vector then that means that
+		# the names are the same prior and after
+		if (is.null(box_txt))
+			box_txt = matrix("", ncol=2, nrow=no_boxes)
+		if (is.null(dim(box_txt)) && is.vector(box_txt))
+			if (length(box_txt) != no_boxes)
+				stop("You have an invalid length of text description, the box_txt param,",
+						" it should have the same length as the boxes, ", no_boxes, ",",
+						" but you provided a length of ", length(box_txt))
+			else
+				box_txt <- cbind(box_txt, box_txt)
+		else if (nrow(box_txt) != no_boxes ||
+				ncol(box_txt) != 2)
+			stop("Your box text matrix doesn't have the right dimension, ",
+					no_boxes, " x 2, it has: ",
+					paste(dim(box_txt), collapse=" x "))
+		
+		
+		if (missing(box_prop)){
+			# Make sure that the clrs correspond to the number of boxes
+			fill_start_box <- rep(fill_start_box, length.out=no_boxes)
+			txt_start_clr <- rep(txt_start_clr, length.out=no_boxes)
+			fill_end_box <- rep(fill_end_box, length.out=no_boxes)
+			txt_end_clr <- rep(txt_end_clr, length.out=no_boxes)
+		}else{
+			fill_start_box <- prTpGetBoxPropClr(fill_start_box,
+					no_boxes=no_boxes)
+			fill_end_box <- prTpGetBoxPropClr(fill_end_box,
+					no_boxes=no_boxes)
+			txt_start_clr <- prTpGetBoxPropClr(txt_start_clr,
+					no_boxes=no_boxes,
+					lengthOneOK=TRUE)
+			txt_end_clr <- prTpGetBoxPropClr(txt_end_clr,
+					no_boxes=no_boxes,
+					lengthOneOK=TRUE)
+			
+			# Input checks
+			if (is.matrix(box_prop) == FALSE)
+				stop("You have to provide the box_prop as a matrix corresponding to the boxes")
+			else if (nrow(box_prop) != no_boxes || ncol(box_prop) != length(transition_flows)+1)
+				stop("Your box_prop matrix must have ", no_boxes, "x", length(transition_flows)+1,
+						" dimensions, your matrix is currently of ",
+						nrow(box_prop), "x", ncol(box_prop), " dimensions")
+			else if (any(box_prop > 1 | box_prop < 0))
+				stop("You have provided in box_prop invalid quantiles outside the 0-1 range")
+			else if (length(fill_start_box) == 0)
+				stop("You have provided invalid number of fill colors (fill_start_box) when used together with box_prop")
+			else if (length(fill_end_box) == 0)
+				stop("You have provided invalid number of fill colors (fill_end_box) when used together with box_prop")
+			else if (length(txt_start_clr) == 0)
+				stop("You have provided invalid number of text colors (txt_start_clr) when used together with box_prop")
+			else if (length(txt_end_clr) == 0)
+				stop("You have provided invalid number of text colors (txt_end_clr) when used together with box_prop")
+		}
+		
+		if(nrow(transition_flow) != ncol(transition_flow))
+			stop("Invalid input array, the matrix is not square but ",
+					nrow(transition_flow), " x ", ncol(transition_flow))
+		
+		# Set the proportion of the start/end sizes of the boxes
+		#prop_start_sizes <- rowSums(transition_flow)/sum(transition_flow)
+		#prop_end_sizes <- colSums(transition_flow)/sum(transition_flow)
+		
+		prop_start_sizes <- box_prop[,transCount]
+		prop_end_sizes <- box_prop[,transCount + 1]
+		
+		if (sum(prop_end_sizes) == 0)
+			stop("You can't have all empty boxes after the transition")
+		
+	
+		# Do the plot
+		# Plot shadow boxes 2 % shifted of the box width
+		shift <- box_width*.02
+		vp1 <- viewport(x = 0.5+shift, y = 0.5-shift, height=1-shift*2, width=1-shift*2, name="shadow_boxes")
+		pushViewport(vp1)
+		
+		shadow_clr <- rep(grey(.8), length.out=no_boxes)
+		prTpPlotBoxes(colNum = transCount, totalColNum = length(transition_flows) + 1,
+				overlap_order = overlap_order,
+				transition_flow = transition_flow,
+				no_boxes = no_boxes,
+				box_width = box_width,
+				tot_spacing = tot_spacing,
+				txt = matrix("", nrow=no_boxes, ncol=2), # Don't print anything in the shadow boxes
+				cex = cex,
+				prop_start_sizes = prop_start_sizes,
+				prop_end_sizes = prop_end_sizes,
+				box_prop = box_prop,
+				lwd_prop_total = lwd_prop_total,
+				fill_start_clr = shadow_clr,
+				fill_end_clr  = shadow_clr,
+				txt_start_clr = txt_start_clr,
+				txt_end_clr = txt_end_clr,
+				line_col=shadow_clr[1],
+				plot_arrows = FALSE,
+				proportion = FALSE)
+		popViewport()
+		
+		# Plot real boxes
+		vp1 <- viewport(x = 0.5-shift, y = 0.5+shift,
+				height=1-shift*2, width=1-shift*2, name="actual_boxes")
+		pushViewport(vp1)
+		prTpPlotBoxes(colNum = transCount, totalColNum = length(transition_flows) + 1,
+				overlap_order = overlap_order,
+				transition_flow = transition_flow,
+				no_boxes = no_boxes,
+				box_width = box_width,
+				tot_spacing = tot_spacing,
+				txt = box_txt,
+				cex = cex,
+				prop_start_sizes = prop_start_sizes,
+				prop_end_sizes = prop_end_sizes,
+				box_prop = box_prop,
+				lwd_prop_total = lwd_prop_total,
+				fill_start_clr = fill_start_box,
+				fill_end_clr  = fill_end_box,
+				txt_start_clr = txt_start_clr,
+				txt_end_clr = txt_end_clr,
+				min_lwd = min_lwd,
+				max_lwd = max_lwd,
+				overlap_add_width = overlap_add_width,
+				overlap_bg_clr = overlap_bg_clr,
+				type_of_arrow = type_of_arrow,
+				abs_arrow_width = abs_arrow_width,
+				arrow_clr = arrow_clr,
+				transition_arrow_props = transition_arrow_props,
+				color_bar_subspace = color_bar_subspace,
+				plot_arrows = TRUE,
+				proportion = TRUE)
+		
+		popViewport()
+		
+		transCount <- transCount + 1	
+	}
+	
+	############# Box Labels
+	if (!is.null(box_label) && length(box_label) == length(transition_flows) + 1){
+		labels <- list()
+		positions <- list()
+		width <- list()
+		
+		for (i in 1:(length(transition_flows) + 1)) {
+			positions[[i]] <- prTpGetBoxPositions(colNum = i, totalColNum = length(transition_flows) + 1, no=1,
+					transitions=transition_flow[1,],
+					prop_sizes = prop_start_sizes,
+					tot_spacing = tot_spacing,
+					box_width = box_width)
+			
+			labels[[i]] <- textGrob(box_label[i],
+					gp=gpar(cex=box_label_cex))
+		}			
+		
+		for (i in 1:(length(transition_flows))) {
+			width[[2*(i-1) + 1]] <- unit(positions[[i]]$right - positions[[i]]$left, "npc")
+			width[[2*(i)]] <- unit(positions[[i + 1]]$left - positions[[i]]$right, "npc")
+		}
+		width[[2*(length(transition_flows)) + 1]] <- unit(positions[[length(transition_flows) + 1]]$right - 
+						positions[[length(transition_flows) + 1]]$left, "npc")
+			
+		if (box_label_pos == "top"){
+			gl <- grid.layout(nrow=3, ncol=length(transition_flows)*2 + 1,
+					heights = unit.c(unit(1, "npc")),
+					widths = width) 
+			label_row_no <- 1
+			main_row_no <- 3
+		}else{
+			gl <- grid.layout(nrow=1, ncol=length(transition_flows)*2 + 1,
+					heights = unit.c(unit(1, "npc")),
+					widths = width)
+			label_row_no <- 3
+			main_row_no <- 1
+		}
+		
+		upViewport()
+		pushViewport(viewport(layout.pos.row=label_row_no, name="labels"))
+		pushViewport(viewport(layout=gl, name="Label_layout"))
+		
+		for (i in 1:(length(transition_flows) + 1)) {
+			pushViewport(viewport(layout.pos.row=1, layout.pos.col=(i - 1) * 2 + 1, 
+							name=paste("Label", i, sep="")))
+			grid.draw(labels[[i]])
+			popViewport()
+		}		
 
-    prop_fn <- function(x){
-      if (x[1] == 0)
-        return(0)
-      if (x[2] == 0)
-        return(1)
-      return(x[1]/x[2])
-    }
-    no_1_start <- rowSums(transition_flow[,,1])
-    no_tot_start <- rowSums(transition_flow)
-    no_1_end <- colSums(transition_flow[,,1])
-    no_tot_end <- rowSums(colSums(transition_flow[,,1:2]))
-    box_prop <- cbind(apply(cbind(no_1_start, no_tot_start), 1, prop_fn),
-                      apply(cbind(no_1_end, no_tot_end), 1, prop_fn))
-    transition_arrow_props <- transition_flow[,,1]/(transition_flow[,,1]+transition_flow[,,2])
-
-    # Remove the third dimension
-    transition_flow <- transition_flow[,,1] + transition_flow[,,2]
-    if (color_bar == FALSE){
-      color_bar <- "none"
-    } else if(!is.character(color_bar)){
-      color_bar <- "bottom"
-    }
-  }else if(!missing(box_prop)){
-    transition_arrow_props <- t(sapply(box_prop[,1], function(x) rep(x, no_boxes)))
-    color_bar <- "none"
-  }else{
-    transition_arrow_props <- matrix(1, ncol=no_boxes, nrow=no_boxes)
-    color_bar <- "none"
-  }
-
-  if (length(arrow_clr) == no_boxes){
-    arrow_clr <- t(sapply(arrow_clr, FUN=function(x){rep(x, ncol(transition_flow))}))
-  } else if (length(arrow_clr) == 1){
-    arrow_clr <- rep(arrow_clr, no_boxes*ncol(transition_flow))
-  }
-
-  if (length(arrow_clr) != no_boxes*ncol(transition_flow))
-    stop("You have provided invalid number of arrow colors,",
-      " you have ", length(arrow_clr), " colors, while you should provide either 1, ",
-      no_boxes, ", or ", no_boxes*ncol(transition_flow), " colors")
-
-  if (length(overlap_order) != no_boxes)
-    stop("You have the wrong number of overlap orders, you provided ",
-      length(overlap_order), " while it should be ", no_boxes)
-  else if (all(overlap_order %in% 1:no_boxes)==FALSE)
-    stop("Your overlap numbers contain numbers outside the rowrange of",
-      " the transition rows, i.e. not between 1 and ", no_boxes)
-
-  type_of_arrow <- match.arg(type_of_arrow)
-  if (type_of_arrow != "grid"){
-    if (!"unit" %in% class(min_lwd) ||
-          !"unit" %in% class(max_lwd))
-      stop("Your line widths must be in units when you specify the alternative arrows, e.g. unit(10, 'pt')")
-
-    # We need to convert these into regular values in order to use
-    # them later on in the calculations
-    min_lwd <- convertUnit(min_lwd, unitTo="npc", valueOnly=TRUE)
-    max_lwd <- convertUnit(max_lwd, unitTo="npc", valueOnly=TRUE)
-  }
-
-  # Do some sanity checking of the variables
-  if (tot_spacing < 0 ||
-        tot_spacing > 1)
-    stop("Total spacing, the tot_spacing param,",
-      " must be a fraction between 0-1,",
-      " you provided ", tot_spacing)
-
-  if (box_width < 0 ||
-        box_width > 1)
-    stop("Box width, the box_width param,",
-      " must be a fraction between 0-1,",
-      " you provided ", box_width)
-
-  # If the text element is a vector then that means that
-  # the names are the same prior and after
-  if (is.null(box_txt))
-    box_txt = matrix("", ncol=2, nrow=no_boxes)
-  if (is.null(dim(box_txt)) && is.vector(box_txt))
-    if (length(box_txt) != no_boxes)
-      stop("You have an invalid length of text description, the box_txt param,",
-          " it should have the same length as the boxes, ", no_boxes, ",",
-          " but you provided a length of ", length(box_txt))
-    else
-      box_txt <- cbind(box_txt, box_txt)
-  else if (nrow(box_txt) != no_boxes ||
-        ncol(box_txt) != 2)
-    stop("Your box text matrix doesn't have the right dimension, ",
-         no_boxes, " x 2, it has: ",
-         paste(dim(box_txt), collapse=" x "))
-
-
-  if (missing(box_prop)){
-    # Make sure that the clrs correspond to the number of boxes
-    fill_start_box <- rep(fill_start_box, length.out=no_boxes)
-    txt_start_clr <- rep(txt_start_clr, length.out=no_boxes)
-    fill_end_box <- rep(fill_end_box, length.out=no_boxes)
-    txt_end_clr <- rep(txt_end_clr, length.out=no_boxes)
-  }else{
-    fill_start_box <- prTpGetBoxPropClr(fill_start_box,
-                                        no_boxes=no_boxes)
-    fill_end_box <- prTpGetBoxPropClr(fill_end_box,
-                                      no_boxes=no_boxes)
-    txt_start_clr <- prTpGetBoxPropClr(txt_start_clr,
-                                       no_boxes=no_boxes,
-                                       lengthOneOK=TRUE)
-    txt_end_clr <- prTpGetBoxPropClr(txt_end_clr,
-                                     no_boxes=no_boxes,
-                                     lengthOneOK=TRUE)
-
-    # Input checks
-    if (is.matrix(box_prop) == FALSE)
-      stop("You have to provide the box_prop as a matrix corresponding to the boxes")
-    else if (nrow(box_prop) != no_boxes || ncol(box_prop) != 2)
-      stop("Your box_prop matrix must have ", no_boxes, "x", 2,
-        " dimensions, your matrix is currently of ",
-        nrow(box_prop), "x", ncol(box_prop), " dimensions")
-    else if (any(box_prop > 1 | box_prop < 0))
-      stop("You have provided in box_prop invalid quantiles outside the 0-1 range")
-    else if (length(fill_start_box) == 0)
-      stop("You have provided invalid number of fill colors (fill_start_box) when used together with box_prop")
-    else if (length(fill_end_box) == 0)
-      stop("You have provided invalid number of fill colors (fill_end_box) when used together with box_prop")
-    else if (length(txt_start_clr) == 0)
-      stop("You have provided invalid number of text colors (txt_start_clr) when used together with box_prop")
-    else if (length(txt_end_clr) == 0)
-      stop("You have provided invalid number of text colors (txt_end_clr) when used together with box_prop")
-  }
-
-  if(nrow(transition_flow) != ncol(transition_flow))
-    stop("Invalid input array, the matrix is not square but ",
-      nrow(transition_flow), " x ", ncol(transition_flow))
-
-  # Set the proportion of the start/end sizes of the boxes
-  prop_start_sizes <- rowSums(transition_flow)/sum(transition_flow)
-  prop_end_sizes <- colSums(transition_flow)/sum(transition_flow)
-
-  if (sum(prop_end_sizes) == 0)
-    stop("You can't have all empty boxes after the transition")
-
-
-  if (new_page) grid.newpage()
-
-  # Add plot margin
-  prPushMarginViewport(bottom = convertY(mar[1], unitTo="npc"),
-                       left = convertX(mar[2], unitTo="npc"),
-                       top = convertY(mar[3], unitTo="npc"),
-                       right = convertX(mar[4], unitTo="npc"),
-                       "main_margins")
-
-  if (!is.null(main) && nchar(main) > 0){
-    prGridPlotTitle(main, cex[1])
-  }
-
-  if (!is.null(box_label) && length(box_label) == 2){
-    left <- prTpGetBoxPositions(side="left", no=1,
-                                transitions=transition_flow[1,],
-                                prop_start_sizes = prop_start_sizes,
-                                prop_end_sizes = prop_end_sizes,
-                                tot_spacing = tot_spacing,
-                                box_width = box_width)
-    right <- prTpGetBoxPositions(side="right", no=1,
-                                 transitions=transition_flow[,1],
-                                 prop_start_sizes = prop_start_sizes,
-                                 prop_end_sizes = prop_end_sizes,
-                                 tot_spacing = tot_spacing,
-                                 box_width = box_width)
-    left_label <- textGrob(box_label[1],
-                           gp=gpar(cex=box_label_cex))
-    right_label <- textGrob(box_label[2],
-                            gp=gpar(cex=box_label_cex))
-    label_height <- convertY(max(grobHeight(left_label), grobHeight(right_label)),
-                   unitTo="npc", valueOnly=TRUE)
-    # Add ygjp space and some margin
-    label_height <- unit(label_height * 2 + label_height * 0.1, "npc")
-    width <- list(left = unit(left$right - left$left, "npc"),
-                  right = unit(right$right - right$left, "npc"))
-    if (box_label_pos == "top"){
-      gl <- grid.layout(nrow=2, ncol=3,
-                        heights = unit.c(label_height,
-                                         unit(1, "npc") - label_height),
-                        widths = unit.c(width$left,
-                                        unit(1, "npc") -
-                                          width$left -
-                                          width$right,
-                                        width$right))
-      label_row_no <- 1
-      main_row_no <- 2
-    }else{
-      gl <- grid.layout(nrow=2, ncol=3,
-                        heights = unit.c(unit(1, "npc") - label_height,
-                                         label_height),
-                        widths = unit.c(width$left,
-                                        unit(1, "npc") -
-                                          width$left -
-                                          width$right,
-                                        width$right))
-      label_row_no <- 2
-      main_row_no <- 1
-    }
-
-    pushViewport(viewport(layout=gl, name="Label_layout"))
-
-    pushViewport(viewport(layout.pos.row=label_row_no, layout.pos.col=1, name="Left_label"))
-    grid.draw(left_label)
-    popViewport()
-    pushViewport(viewport(layout.pos.row=label_row_no, layout.pos.col=3, name="Right_label"))
-    grid.draw(right_label)
-    popViewport()
-
-    pushViewport(viewport(layout.pos.row=main_row_no, layout.pos.col=1:3, name="Main_exc_label"))
-  }
-
-  if (color_bar != "none"){
-    if (color_bar == "bottom"){
-      bar_height <- unit(.05, "npc")
-      colorAxis <- xaxisGrob(at=c(0,.25,.5,.75, 1),
-                             label= sprintf("%d %%", c(0,.25,.5,.75, 1)*100),
-                             main=FALSE, gp=gpar(cex=color_bar_cex))
-
-      # Add a little space to the actual height
-      axis_height <- grobHeight(colorAxis) + unit(.01, "npc")
-      bar_layout <- grid.layout(nrow=3, ncol=3,
-                                heights = unit.c(unit(1, "npc") -
-                                                   axis_height -
-                                                   bar_height,
-                                                 axis_height,
-                                                 bar_height),
-                                widths = unit.c(unit(box_width, "npc"),
-                                                unit(1, "npc") -
-                                                  unit(box_width*2, "npc"),
-                                                unit(box_width, "npc")))
-
-      pushViewport(viewport(layout=bar_layout, name="Bar_layout"))
-
-      pushViewport(viewport(layout.pos.row=3,
-                            layout.pos.col=2,
-                            name="Color_bar"))
-      bar_clrs <- prTpGetColors(fill_start_box[1,], space=color_bar_subspace)
-      grid.raster(t(as.raster(bar_clrs)), width=1, height=1, interpolate=FALSE)
-      grid.draw(colorAxis)
-      if (!missing(color_bar_labels)){
-        # The height is actually oblivious to upper case and lower case letters
-        lab_height <- convertY(grobHeight(textGrob("Ij")), "npc", valueOnly=TRUE)
-        lab_cex_adjusted <- 1/(lab_height*2)
-
-        if (missing(txt_start_clr)){
-          color_bar_txt_clr <- c("black", "black")
-        }else if (ncol(txt_start_clr) == 1){
-          color_bar_txt_clr <- rep(txt_start_clr[1], 2)
-        }else{
-          color_bar_txt_clr <- txt_start_clr[1,]
-        }
-
-        left <- textGrob(color_bar_labels[1], x=0, y=.5, just="left",
-                         gp=gpar(cex=lab_cex_adjusted,
-                                 col=color_bar_txt_clr[1]))
-        right <- textGrob(color_bar_labels[2], x=1, y=.5, just="right",
-                          gp=gpar(cex=lab_cex_adjusted,
-                                  col=color_bar_txt_clr[2]))
-        grid.draw(left)
-        grid.draw(right)
-      }
-      popViewport()
-
-      pushViewport(viewport(layout.pos.row=1,
-                            layout.pos.col=1:3,
-                            name="Main_exc_bar"))
-
-    }else{
-      stop("The color bar position you want, '", color_bar, "', is not yet supported")
-    }
-  }
-  # Do the plot
-  # Plot shadow boxes 2 % shifted of the box width
-  shift <- box_width*.02
-  vp1 <- viewport(x = 0.5+shift, y = 0.5-shift, height=1-shift*2, width=1-shift*2, name="shadow_boxes")
-  pushViewport(vp1)
-
-  shadow_clr <- rep(grey(.8), length.out=no_boxes)
-  prTpPlotBoxes(overlap_order = overlap_order,
-                transition_flow = transition_flow,
-                no_boxes = no_boxes,
-                box_width = box_width,
-                tot_spacing = tot_spacing,
-                txt = matrix("", nrow=no_boxes, ncol=2), # Don't print anything in the shadow boxes
-                cex = cex,
-                prop_start_sizes = prop_start_sizes,
-                prop_end_sizes = prop_end_sizes,
-                box_prop = box_prop,
-                lwd_prop_total = lwd_prop_total,
-                fill_start_clr = shadow_clr,
-                fill_end_clr  = shadow_clr,
-                txt_start_clr = txt_start_clr,
-                txt_end_clr = txt_end_clr,
-                line_col=shadow_clr[1],
-                plot_arrows = FALSE,
-                proportion = FALSE)
-  popViewport()
-
-  # Plot real boxes
-  vp1 <- viewport(x = 0.5-shift, y = 0.5+shift,
-                  height=1-shift*2, width=1-shift*2, name="actual_boxes")
-  pushViewport(vp1)
-  prTpPlotBoxes(overlap_order = overlap_order,
-                transition_flow = transition_flow,
-                no_boxes = no_boxes,
-                box_width = box_width,
-                tot_spacing = tot_spacing,
-                txt = box_txt,
-                cex = cex,
-                prop_start_sizes = prop_start_sizes,
-                prop_end_sizes = prop_end_sizes,
-                box_prop = box_prop,
-                lwd_prop_total = lwd_prop_total,
-                fill_start_clr = fill_start_box,
-                fill_end_clr  = fill_end_box,
-                txt_start_clr = txt_start_clr,
-                txt_end_clr = txt_end_clr,
-                min_lwd = min_lwd,
-                max_lwd = max_lwd,
-                overlap_add_width = overlap_add_width,
-                overlap_bg_clr = overlap_bg_clr,
-                type_of_arrow = type_of_arrow,
-                abs_arrow_width = abs_arrow_width,
-                arrow_clr = arrow_clr,
-                transition_arrow_props = transition_arrow_props,
-                color_bar_subspace = color_bar_subspace,
-                plot_arrows = TRUE,
-                proportion = TRUE)
-
-  popViewport()
-
-  if (!is.null(main) && nchar(main) > 0){
-    popViewport()
-  }
-
-  if (color_bar != "none"){
-    popViewport()
-  }
-
-  if (!is.null(box_label) && length(box_label) == 2){
-    popViewport()
-  }
+		popViewport()
+	}
+	
+	
+	# COLOUR BAR
+	if (color_bar != "none"){
+		if (color_bar == "bottom"){
+			bar_height <- unit(.05, "npc")
+			colorAxis <- xaxisGrob(at=c(0,.25,.5,.75, 1),
+					label= sprintf("%d %%", c(0,.25,.5,.75, 1)*100),
+					main=FALSE, gp=gpar(cex=color_bar_cex))
+			
+			# Add a little space to the actual height
+			axis_height <- grobHeight(colorAxis) + unit(.01, "npc")
+			bar_layout <- grid.layout(nrow=3, ncol=3,
+					heights = unit.c(unit(1, "npc") -
+									axis_height -
+									bar_height,
+							axis_height,
+							bar_height),
+					widths = unit.c(unit(box_width, "npc"),
+							unit(1, "npc") -
+									unit(box_width*2, "npc"),
+							unit(box_width, "npc")))
+			
+			pushViewport(viewport(layout=bar_layout, name="Bar_layout"))
+			
+			pushViewport(viewport(layout.pos.row=3,
+							layout.pos.col=2,
+							name="Color_bar"))
+			bar_clrs <- prTpGetColors(fill_start_box[1,], space=color_bar_subspace)
+			grid.raster(t(as.raster(bar_clrs)), width=1, height=1, interpolate=FALSE)
+			grid.draw(colorAxis)
+			if (!missing(color_bar_labels)){
+				# The height is actually oblivious to upper case and lower case letters
+				lab_height <- convertY(grobHeight(textGrob("Ij")), "npc", valueOnly=TRUE)
+				lab_cex_adjusted <- 1/(lab_height*2)
+				
+				if (missing(txt_start_clr)){
+					color_bar_txt_clr <- c("black", "black")
+				}else if (ncol(txt_start_clr) == 1){
+					color_bar_txt_clr <- rep(txt_start_clr[1], 2)
+				}else{
+					color_bar_txt_clr <- txt_start_clr[1,]
+				}
+				
+				left <- textGrob(color_bar_labels[1], x=0, y=.5, just="left",
+						gp=gpar(cex=lab_cex_adjusted,
+								col=color_bar_txt_clr[1]))
+				right <- textGrob(color_bar_labels[2], x=1, y=.5, just="right",
+						gp=gpar(cex=lab_cex_adjusted,
+								col=color_bar_txt_clr[2]))
+				grid.draw(left)
+				grid.draw(right)
+			}
+			popViewport()
+			
+			pushViewport(viewport(layout.pos.row=1,
+							layout.pos.col=1:3,
+							name="Main_exc_bar"))
+			
+		}else{
+			stop("The color bar position you want, '", color_bar, "', is not yet supported")
+		}
+		
+		popViewport()
+	}
+	
+	if (!is.null(box_label) && length(box_label) == 2){
+		popViewport()
+	}
+	
+	if (!is.null(main) && nchar(main) > 0){
+		popViewport()
+	}
 }

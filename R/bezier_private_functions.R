@@ -313,17 +313,24 @@ getLines <- function(bp, end_point,
     if ("unit" %in% class(ref_y))
       ref_y <- convertY(ref_y, unitTo=default.units, valueOnly=TRUE)
 
-    if (shorten_by_x)
-      if (x[1] < x[2])
-        keep <- which(x > ref_x)[1]:length(x)
-      else
-        keep <- which(x < ref_x)[1]:length(x)
-    else
-      if (y[1] < y[2])
-        keep <- which(y > ref_y)[1]:length(y)
-      else
-        keep <- which(y < ref_y)[1]:length(y)
-
+    if (shorten_by_x) {
+      	if (x[1] < x[2]) {
+        	keep <- which(x > ref_x)[1]:length(x)
+		} else {
+        	keep <- which(x < ref_x)[1]:length(x)
+		}
+	} else {
+      	if (y[1] < y[2]) {
+			if (max(y) > ref_y) {
+        		keep <- which(y > ref_y)[1]:length(y)
+			} else {
+				keep <- NULL
+			}
+		} else {
+        	keep <- which(y < ref_y)[1]:length(y)
+		}
+	}
+	
     x <- unit(c(ref_x, x[keep]), default.units)
     y <- unit(c(ref_y, y[keep]), default.units)
 
