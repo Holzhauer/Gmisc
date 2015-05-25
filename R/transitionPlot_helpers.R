@@ -201,7 +201,7 @@ prTpPlotArrows <- function(type,
 		if (transition_flow[box_row,flow] > 0){
 			bx_right <- prTpGetBoxPositions(no=flow, colNum = colNum + 1,
 					totalColNum = totalColNum,
-					transitions = transition_flow[,box_row],
+					transitions = transition_flow[,flow],
 					prop_sizes = prop_end_sizes,
 					tot_spacing=tot_spacing,
 					box_width=box_width)

@@ -1,15 +1,13 @@
-Package: Gmisc
-Version: 1.0.1
-Date: 2015-01-07
+Package: shGmisc
+Version: 1.0.2
+Date: 2015-05-25
 Title: Descriptive Statistics, Transition Plots, and More
 Author: Max Gordon <max@gforge.se>
-Maintainer: Max Gordon <max@gforge.se>
-Description:
-   Tools for making the descriptive "Table 1" used in medical articles,
-   a transition plot for showing changes between categories,
-   a method for variable selection based on the SVD,
-   Bézier lines with arrows complementing the ones in the 'grid' package,
-   and more.
+Maintainer: Sascha Holzhauer <Sascha.Holzhauer@ed.ac.uk>
+Description: Tools for making the descriptive "Table 1" used in medical
+    articles, a transition plot for showing changes between categories, a
+    method for variable selection based on the SVD, Bézier lines with arrows
+    complementing the ones in the 'grid' package, and more.
 License: GPL (>= 3)
 URL: http://gforge.se
 BugReports: https://github.com/gforge/Gmisc/issues

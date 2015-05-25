@@ -205,7 +205,7 @@ bezierArrowGradient2sided <- function(
         y=end_points$end$y,
         x_origo=bp$x[end_point],
         y_origo=bp$y[end_point],
-        width=max_gradient_width*g_factor[1],
+        width=max_gradient_width*1.0,
         default.units=default.units,
         perpendicular=TRUE)
     }else{
@@ -213,7 +213,7 @@ bezierArrowGradient2sided <- function(
         y=bp$y[end_point + 1],
         x_origo=bp$x[end_point],
         y_origo=bp$y[end_point],
-        width=max_gradient_width*g_factor[1],
+        width=max_gradient_width*1.0,
         default.units=default.units,
         perpendicular=TRUE)
 

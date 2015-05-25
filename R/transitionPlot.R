@@ -1,10 +1,4 @@
-source("C:/Data/LURG/workspace/R-CRAFTY/package/transplot/R/transitionPlot_helpers.R")
-source("C:/Data/LURG/workspace/R-CRAFTY/package/transplot/R/private_functions.R")
-source("C:/Data/LURG/workspace/R-CRAFTY/package/transplot/R/bezier_private_functions.R")
-source("C:/Data/LURG/workspace/R-CRAFTY/package/transplot/R/bezierArrowGradient2sided.R")
 #' A transition plot
-#' 
-#' http://gforge.se/packages/
 #'
 #' This plot purpose is to illustrate how states change before and
 #' after. In my research I use it before surgery and after surgery
@@ -91,6 +85,7 @@ source("C:/Data/LURG/workspace/R-CRAFTY/package/transplot/R/bezierArrowGradient2
 #' # takes a little while to assemble the
 #' # arrows and RMD Check complains that this
 #' # is more than allowed for
+#' library(grid)
 #' par_org <- par(ask=TRUE)
 #' # Settings
 #' no_boxes <- 3
@@ -130,7 +125,7 @@ source("C:/Data/LURG/workspace/R-CRAFTY/package/transplot/R/bezierArrowGradient2
 #' }
 #' @import grid
 #' @export
-visualisation.transitionPlot <- function (transition_flows,
+transitionPlot <- function (transition_flows,
 		type_of_arrow = c("grid", "simple", "gradient", "gradient2sided"),
 		box_txt = rownames(transition_flows[[1]]),
 		tot_spacing = 0.2,
@@ -140,7 +135,7 @@ visualisation.transitionPlot <- function (transition_flows,
 		fill_end_box = fill_start_box,
 		txt_end_clr = txt_start_clr,
 		cex=2,
-		min_lwd = if(type_of_arrow == "grid") 1 else unit(1, "mm"),
+		min_lwd = if(type_of_arrow == "grid") 1 else unit(.1, "mm"),
 		max_lwd = if(type_of_arrow == "grid") 6 else unit(5, "mm"),
 		lwd_prop_total = TRUE,
 		arrow_clr = "#000000",

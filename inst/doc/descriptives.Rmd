@@ -105,7 +105,6 @@ htmlTable(mergeDesc(t1),
           caption  = "Basic descriptive statistics from the mtcars dataset",
           tfoot = "&dagger; The weight is in 10<sup>3</sup> kg")
 ```
-
 Event though p-values are discouraged in the table 1, they are [not uncommon](http://cpr.sagepub.com/content/19/2/231.full). I have therefore added basic statistics consisting of Fisher's exact test for proportions and Wilcoxon rank sum test for continuous values. Note that the Wilcoxon only works with two groups.
 
 ```{r, results='asis', warning=FALSE}
