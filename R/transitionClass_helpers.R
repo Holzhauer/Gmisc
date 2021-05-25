@@ -56,10 +56,10 @@ prTcPlotBoxColumn <- function(box_positions,
 #' @keywords internal
 prTcPlotArrows <- function(trnstn_set,
                            widths,
-                           type =  c("simple", "gradient"),
+                           type =  c("simple", "gradient", "gradient2sided"),
                            clr,
                            origin_boxes, target_boxes,
-                           left_box_clrs, add_width,
+                           left_box_clrs, right_box_clrs, add_width,
                            max_flow, min_width, max_width,
                            abs_arrow_width = FALSE,
                            clr_bar_subspace){
@@ -144,6 +144,39 @@ prTcPlotArrows <- function(trnstn_set,
                           arrow=list(length=arrow_length, base=a_width),
                           clr=arrow_clr) %>%
             grid.draw
+		}else if (type=="gradient2sided"){
+			if (NCOL(right_box_clrs) == 2){
+				# Invert order as that is the fill order
+				left_current_grdt_clr <- prTpGetColors(colors = right_box_clrs[target_row],
+						proportion = 1-transition_arrow_props[box_row, target_row],
+						space = color_bar_subspace)
+			}else{
+				left_current_grdt_clr <- right_box_clrs[target_row]
+			}
+			
+			if (NCOL(left_box_clrs) == 2){
+				right_current_grdt_clr <- prTpGetColors(colors = left_box_clrs[org_row,],
+						proportion = 1-transition_arrow_props[org_row, target_row],
+						space = clr_bar_subspace)
+			}else{
+				if (is.matrix(left_box_clrs))
+					right_current_grdt_clr <- left_box_clrs[org_row,1]
+				else
+					right_current_grdt_clr <- left_box_clrs[org_row]
+			}
+			
+			bezierArrowGradient2sided(x=x_ctrl_points,
+					y=y_ctrl_points,
+					width=adjusted_lwd,
+					arrow=list(length=arrow_length, base=a_width),
+					clr=arrow_clr,
+					grdt_type = "triangle",
+					grdt_clr_prop = 0.5,
+					grdt_start_prop = .7,
+					grdt_decrease_prop = .3,
+					grdt_clr_left = left_current_grdt_clr,
+					grdt_clr_right = right_current_grdt_clr)  %>%
+			grid.draw
         }else{
           if (NCOL(left_box_clrs) == 2){
             current_grdt_clr <- prTpGetColors(colors = left_box_clrs[org_row,],

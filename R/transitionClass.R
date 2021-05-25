@@ -4,6 +4,7 @@
 #' allows for advanced multi-column transitions.
 #'
 #' @field transitions This is a >= 3 dimensional array with the transitions. Should not be direcly accessed.
+#' @field populations TODO
 #' @field box_width The box width
 #' @field box_txt The texts of each box
 #' @field box_label Box labels
@@ -64,6 +65,13 @@ Transition <-
                " and '", ncol(value), "' columns.")
         data$transitions <<- value
       },
+	  populations = function(value) {
+		  # TODO error handling
+		  if (missing(value))
+			  return(data$populations)
+		  
+		  data$populations <<- value
+	  },
       box_width = function(value){
         if (missing(value))
           return(data$box_width)
@@ -156,7 +164,7 @@ Transition <-
 
           min_height <- Inf
           for (col in 1:.self$noCols()){
-            proportions <- getYProps(col)
+            proportions <- .self$getYProps(col)
             proportions <- proportions[proportions > 0]
             min_height %<>%
               min(proportions)
@@ -174,7 +182,7 @@ Transition <-
 
         data$box_cex <<- value
       },
-      arrow_type = function(value = c("gradient", "simple")){
+      arrow_type = function(value = c("gradient", "simple", "gradient2sided")){
         if (missing(value)){
           if (!is.null(data$arrow_type))
             return(data$arrow_type)
@@ -240,7 +248,7 @@ Transition <-
         if (missing(value)){
           # Only show bar if there is actually something to show
           if (length(.self$getDim()) == 3){
-            if (arrow_type == "gradient" &&
+            if ((arrow_type == "gradient" || arrow_type == "gradient2sided") &&
                   length(clr_bar_clrs) == 2){
               if (!is.null(data$clr_bar))
                 return(data$clr_bar)
@@ -724,8 +732,8 @@ Transition <-
         return(mtrx)
       },
       boxSizes = function(col){
-        "Gets the size of the boxes. The \\code{col} argumente shoud
-        is either an integer or 'last'"
+        "Gets the size of the boxes. The \\code{col} argument should
+        be either an integer or 'last'. Applies 'populations' if set."
         if (is.character(col)){
           if(col == "last"){
             col <- .self$noCols()
@@ -736,6 +744,11 @@ Transition <-
                  " while you have requested '", col, "'")
         }
 
+		if (!is.null(populations) && ncol(populations) <= col) {
+			pop <- .self$populations()
+			return(pop[col, ])
+		}
+		
         if (col == .self$noCols()){
           # Get last transition matrix and extract the column sums from that one
           mtrx <- asub(transitions, tail(dim(transitions), 1), dims = length(dim(transitions)))
@@ -972,7 +985,7 @@ Transition <-
 
 
         for (col in 1:.self$noCols()){
-          proportions <- getYProps(col)
+          proportions <- .self$getYProps(col)
 
           txt <- box_txt[,col]
           bx_pos <- .self$boxPositions(col)
@@ -1005,6 +1018,7 @@ Transition <-
                            origin_boxes = bx_pos,
                            target_boxes = .self$boxPositions(col + 1),
                            left_box_clrs = box_args[["fill"]],
+						   right_box_clrs = asub(fill_clr, idx = col + 1, dims = 2),
                            max_flow = max_flow,
                            min_width = min_width,
                            max_width = max_width,
