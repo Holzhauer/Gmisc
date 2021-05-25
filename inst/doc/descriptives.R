@@ -1,4 +1,4 @@
-## ----, message=FALSE-----------------------------------------------------
+## ---- message=FALSE------------------------------------------------------
 data(mtcars)
 # For labelling we use the label()
 # function from the Hmisc package
@@ -22,7 +22,7 @@ mtcars$col <- factor(sample(c("red", "black", "silver"),
 label(mtcars$col) <- "Car color"
 
 ## ------------------------------------------------------------------------
-library(Gmisc)
+library(shGmisc)
 getDescriptionStatsBy(x = mtcars$mpg, 
                       by = mtcars$am)
 
@@ -46,7 +46,7 @@ getTable1Stats(mtcars$mpg)
 ## ------------------------------------------------------------------------
 getTable1Stats(mtcars$mpg, use_units = TRUE)
 
-## ----, results='asis'----------------------------------------------------
+## ---- results='asis'-----------------------------------------------------
 t1 <- list()
 t1[["Gas"]] <-
   getTable1Stats(mtcars$mpg)
@@ -67,7 +67,7 @@ htmlTable(mergeDesc(t1),
           caption  = "Basic descriptive statistics from the mtcars dataset",
           tfoot = "&dagger; The weight is in 10<sup>3</sup> kg")
 
-## ----, results='asis', warning=FALSE-------------------------------------
+## ---- results='asis', warning=FALSE--------------------------------------
 # A little more advanced input
 mtcars$mpg_w_missing <- mtcars$mpg
 mtcars$mpg_w_missing[sample(1:NROW(mtcars), size=5)] <- NA

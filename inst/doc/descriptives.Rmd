@@ -46,7 +46,7 @@ label(mtcars$col) <- "Car color"
 The function **getDescriptionStatsBy** is a simple way to do basic descriptive statistics. Mandatory inputs are the first two, *x* and *by*:
 
 ```{r}
-library(Gmisc)
+library(shGmisc)
 getDescriptionStatsBy(x = mtcars$mpg, 
                       by = mtcars$am)
 ```
